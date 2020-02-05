@@ -3,20 +3,21 @@ import sys
 import random
 import math
 from level_generation import Generator
-SIZE = (800, 600)
+SIZE = (800, 600)  # size of the screen
 CENTER = (SIZE[0]/2, SIZE[1]/2)
-FPS = 120
+FPS = 30
 
 
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.image.load('player_standing_down.png').convert_alpha()
+        self.image = pygame.image.load('imgs/player_standing_down.png').convert_alpha()
         self.rect = self.image.get_rect(center=CENTER)
         self.cycle = 0
         self.angle = 0
         self.speedx = 0
         self.speedy = 0
+        self.health_points = 100
 
     def update(self):
         (mouse_x, mouse_y) = pygame.mouse.get_pos()
@@ -28,14 +29,14 @@ class Player(pygame.sprite.Sprite):
         if self.cycle == 10:
             self.cycle = 0
 
-        standing_up = pygame.image.load('player_standing_up.png')
-        standing_down = pygame.image.load('player_standing_down.png')
-        standing_left = pygame.image.load('player_standing_left.png')
-        standing_right = pygame.image.load('player_standing_right.png')
-        going_up = [pygame.image.load('player_up_1.png'), pygame.image.load('player_up_2.png')]
-        going_right = [pygame.image.load('player_right_1.png'), pygame.image.load('player_right_2.png')]
-        going_down = [pygame.image.load('player_down_1.png'), pygame.image.load('player_down_2.png')]
-        going_left = [pygame.image.load('player_left_1.png'), pygame.image.load('player_left_2.png')]
+        standing_up = pygame.image.load('imgs/player_standing_up.png')
+        standing_down = pygame.image.load('imgs/player_standing_down.png')
+        standing_left = pygame.image.load('imgs/player_standing_left.png')
+        standing_right = pygame.image.load('imgs/player_standing_right.png')
+        going_up = [pygame.image.load('imgs/player_up_1.png'), pygame.image.load('imgs/player_up_2.png')]
+        going_right = [pygame.image.load('imgs/player_right_1.png'), pygame.image.load('imgs/player_right_2.png')]
+        going_down = [pygame.image.load('imgs/player_down_1.png'), pygame.image.load('imgs/player_down_2.png')]
+        going_left = [pygame.image.load('imgs/player_left_1.png'), pygame.image.load('imgs/player_left_2.png')]
 
         if -135 < self.angle < -45:
             if self.speedx == 0 and self.speedy == 0:
@@ -64,7 +65,7 @@ class Player(pygame.sprite.Sprite):
 class Wall(pygame.sprite.Sprite):
     def __init__(self, x, y, dx, dy):
         pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.image.load('wall_tile_1.png')
+        self.image = pygame.image.load('imgs/wall_tile_1.png')
         self.rect = self.image.get_rect(center=(x*100 - dx, y*100 - dy))
         self.speedx = 0
         self.speedy = 0
@@ -111,7 +112,7 @@ class Wall(pygame.sprite.Sprite):
 class Floor(pygame.sprite.Sprite):
     def __init__(self, x, y, dx, dy):
         pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.image.load('floor_tile_1.png')
+        self.image = pygame.image.load('imgs/floor_tile_' + str(random.randint(1, 4)) + '.png')
         self.rect = self.image.get_rect(center=(x*100 - dx, y*100 - dy))
         self.speedx = 0
         self.speedy = 0
@@ -157,10 +158,11 @@ class Floor(pygame.sprite.Sprite):
 class Entity(pygame.sprite.Sprite):
     def __init__(self, x, y, dx, dy, behavior=0):
         pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.image.load('enemy0.png')
+        self.image = pygame.image.load('imgs/enemy0.png')
         self.rect = self.image.get_rect(center=(x * 100 - dx, y * 100 - dy))
         self.speedx = 0
         self.speedy = 0
+        self.health_points = 100
         self.behavior = behavior
 
     def give_force(self, vector):
@@ -201,6 +203,27 @@ class Entity(pygame.sprite.Sprite):
             self.give_force('0y')
 
 
+def update_surroundings_with_motion(motion):
+    global floors
+    global walls
+    global npcs
+    for wall in walls:
+        wall.give_force(motion)
+    for floor in floors:
+        floor.give_force(motion)
+    for enemy in npcs:
+        enemy.give_force(motion)
+
+
+def distance_between_two_dots(x1, y1, x2, y2):
+    dstx = x2 - x1
+    dsty = y2 - y1
+    dstx **= 2
+    dsty **= 2
+    dst = dstx + dsty
+    dst = math.sqrt(dst)
+    return dst
+
 pygame.init()
 sc = pygame.display.set_mode(SIZE)
 clock = pygame.time.Clock()
@@ -220,19 +243,21 @@ while is_stone:
 # print(spawn_room, ';', spawn_point_x, ';', spawn_point_y)
 walls = []
 floors = []
+npcs = []
+
+# spawning walls and floor
 for i in range(64):
     for j in range(64):
         if dungeon.tiles_level[i][j] == ".":
-            if random.randint(0, 50) == 42:
-                enemy0 = Entity(i, j, spawn_point_x, spawn_point_y)
-enemy1 = Entity(0, 0, 0, 0)
+            if random.randint(1, 50) == 42:
+                npcs.append(Entity(i, j, spawn_point_x, spawn_point_y))
 
 tmp = 1
 motion_up = False
 motion_right = False
 motion_down = False
 motion_left = False
-motion_inverter = False
+# motion_inverter = False
 for i in range(64):
     for j in range(64):
         if dungeon.tiles_level[i][j] == "#":
@@ -265,9 +290,14 @@ while 1:
                 motion_up = False
             if event.key == pygame.K_s:
                 motion_down = False
-    sc.fill((0, 0, 0))
-    hits = pygame.sprite.spritecollide(player, walls, False)
-    if hits:
+
+    sc.fill((20, 20, 3))
+    player_walls_hits = pygame.sprite.spritecollide(player, walls, False)
+    if player_walls_hits:
+        motion_right = False
+        motion_left = False
+        motion_down = False
+        motion_up = False
         for wall in walls:
             wall.speedx *= -2
             wall.speedy *= -2
@@ -276,81 +306,55 @@ while 1:
             floor.speedy *= -2
 
     if motion_up:
-        for wall in walls:
-            wall.give_force('up')
-            sc.blit(wall.image, wall.rect)
-            wall.update()
-        for floor in floors:
-            floor.give_force('up')
-            sc.blit(floor.image, floor.rect)
-            floor.update()
+        update_surroundings_with_motion('up')
     if motion_down:
-        for wall in walls:
-            wall.give_force('down')
-            sc.blit(wall.image, wall.rect)
-            wall.update()
-        for floor in floors:
-            floor.give_force('down')
-            sc.blit(floor.image, floor.rect)
-            floor.update()
+        update_surroundings_with_motion('down')
     if motion_left:
-        for wall in walls:
-            wall.give_force('left')
-            sc.blit(wall.image, wall.rect)
-            wall.update()
-        for floor in floors:
-            floor.give_force('left')
-            sc.blit(floor.image, floor.rect)
-            floor.update()
+        update_surroundings_with_motion('left')
     if motion_right:
-        for wall in walls:
-            wall.give_force('right')
-            sc.blit(wall.image, wall.rect)
-            wall.update()
-        for floor in floors:
-            floor.give_force('right')
-            sc.blit(floor.image, floor.rect)
-            floor.update()
+        update_surroundings_with_motion('right')
     if not (motion_up or motion_down):
-        for wall in walls:
-            wall.give_force('0y')
-            sc.blit(wall.image, wall.rect)
-            wall.update()
-        for floor in floors:
-            floor.give_force('0y')
-            sc.blit(floor.image, floor.rect)
-            floor.update()
+        update_surroundings_with_motion('0y')
     if not (motion_left or motion_right):
-        for wall in walls:
-            wall.give_force('0x')
-            sc.blit(wall.image, wall.rect)
-            wall.update()
-        for floor in floors:
-            floor.give_force('0x')
-            sc.blit(floor.image, floor.rect)
-            floor.update()
+        update_surroundings_with_motion('0x')
     if not (motion_up or motion_down or motion_left or motion_right):
-        for wall in walls:
-            wall.give_force('0')
-            sc.blit(wall.image, wall.rect)
-            wall.update()
-        for floor in floors:
-            floor.give_force('0')
-            sc.blit(floor.image, floor.rect)
-            floor.update()
-
+        update_surroundings_with_motion('0')
     player.speedx = walls[0].speedx
     player.speedy = walls[0].speedy
 
+    # updating walls
     for wall in walls:
+        sc.blit(wall.image, wall.rect)
         wall.update()
-    for floor in floors:
-        floor.update()
-    sc.blit(player.image, player.rect)
-    sc.blit(enemy0.image, enemy0.rect)
-    player.update()
-    enemy0.update()
 
+    # updating floor
+    for floor in floors:
+        sc.blit(floor.image, floor.rect)
+        floor.update()
+
+    # updating NPCs
+    for npc in npcs:
+        npc_walls_hits = pygame.sprite.spritecollide(npc, walls, False)
+        from_this_npc_to_player = distance_between_two_dots(npc.rect.x, npc.rect.y, player.rect.x, player.rect.y)
+        if from_this_npc_to_player < 300 and not npc_walls_hits:
+            print(from_this_npc_to_player)
+            if npc.rect.y > player.rect.y:
+                npc.give_force('down')
+            else:
+                npc.give_force('up')
+            if npc.rect.x > player.rect.x:
+                npc.give_force('right')
+            else:
+                npc.give_force('left')
+            npc.update()
+        sc.blit(npc.image, npc.rect)
+        npc.update()
+
+    sc.blit(player.image, player.rect)
+    player.update()
+
+    # TEST
+
+    # TEST
     clock.tick(FPS)
     pygame.display.update()
-
