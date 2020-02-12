@@ -1,12 +1,21 @@
+import time
+
 import pygame
 import sys
 import random
 import math
-import time
 from level_generation import Generator
+
 SIZE = (800, 600)  # size of the screen
 CENTER = (SIZE[0]/2, SIZE[1]/2)
 FPS = 30
+
+
+class StartingScreen(pygame.sprite.Sprite):
+    def __init__(self, source, coords):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load(source).convert_alpha()
+        self.rect = self.image.get_rect(center=coords)
 
 
 class Player(pygame.sprite.Sprite):
@@ -172,8 +181,6 @@ def update_surroundings_with_motion(motion):
         wall.give_force(motion)
     for floor in floors:
         floor.give_force(motion)
-    # for npc in npcs:
-    #     npc.give_force(motion)
 
 
 def distance_between_two_dots(x1, y1, x2, y2):
@@ -207,26 +214,76 @@ walls = []
 floors = []
 npcs = []
 
-# spawning npcs
-for i in range(64):
-    for j in range(64):
-        if dungeon.tiles_level[i][j] == ".":
-            if random.randint(1, 50) == 42:
-                npcs.append(Entity(i, j, spawn_point_x, spawn_point_y))
-print(len(npcs), 'enemies')
 motion_up = False
 motion_right = False
 motion_down = False
 motion_left = False
-# spawning walls and floor
+# spawning walls and floor and npcs
 for i in range(64):
     for j in range(64):
         if dungeon.tiles_level[i][j] == "#":
             walls.append(DungeonTile(i, j, spawn_point_x, spawn_point_y, False))
         if dungeon.tiles_level[i][j] == ".":
             floors.append(DungeonTile(i, j, spawn_point_x, spawn_point_y, True))
+            if random.randint(1, 50) == 42:
+                npcs.append(Entity(i, j, spawn_point_x, spawn_point_y))
 
-while 1:
+with open('numberofenemies.txt', 'a') as npclog:
+    npclog.write(str(len(npcs)) + '\n')
+
+
+main_menu = True
+game = True
+stsc = StartingScreen('imgs/screen_menu.png', CENTER)
+new_game_button = StartingScreen('imgs/new_game.png', (400, 150))
+credits_button = StartingScreen('imgs/credits.png', (400, 300))
+exit_game_button = StartingScreen('imgs/exit_game.png', (400, 450))
+
+
+while main_menu:
+    click = False
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            click = True
+
+    mouse_x, mouse_y = pygame.mouse.get_pos()
+    stsc.update()
+    sc.blit(stsc.image, stsc.rect)
+    if 230 < mouse_x < 570:
+        if 105 < mouse_y < 200:
+            new_game_button.update()
+            sc.blit(new_game_button.image, new_game_button.rect)
+            if click:
+                main_menu = False
+        if 253 < mouse_y < 348:
+            credits_button.update()
+            sc.blit(credits_button.image, credits_button.rect)
+            if click:
+                stsc = StartingScreen('imgs/screen_credits.png', CENTER)
+                credits_starting_time = time.process_time()
+                print(credits_starting_time)
+                while credits_starting_time + 0.2 > time.process_time():
+                    print(credits_starting_time + 0.2, time.process_time())
+                    sc.blit(stsc.image, stsc.rect)
+                    clock.tick(FPS)
+                    pygame.display.update()
+                stsc = StartingScreen('imgs/screen_menu.png', CENTER)
+        if 400 < mouse_y < 495:
+            exit_game_button.update()
+            sc.blit(exit_game_button.image, exit_game_button.rect)
+            if click:
+                pygame.quit()
+                sys.exit()
+
+
+    clock.tick(FPS)
+    pygame.display.update()
+
+
+while game:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -335,4 +392,3 @@ while 1:
 
     clock.tick(FPS)
     pygame.display.update()
-    
